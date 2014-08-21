@@ -1,0 +1,10 @@
+.settings
+stacktrace.log
+/*.zip
+/*.log
+.DS_Store
+/target/
+/out/
+*.tmproj
+*.sublime-*
+*.iml
