@@ -11,8 +11,11 @@ import edu.stanford.nlp.util.CoreMap
  */
 class Text {
     String text
-    def tokens = []
+
     def boundaries = []
+    def offsets = []
+
+    def tokens = []
     def pos = []
     def stems = []
 
@@ -27,16 +30,19 @@ class Text {
         def sentences = document.get(CoreAnnotations.SentencesAnnotation.class)
 
         int tokIndex = 0
-        boundaries << 0 // initialize boundaries
+        [boundaries, offsets].each { it << 0 } // initialize boundaries
         sentences.each { CoreMap sentence ->
             sentence.get(CoreAnnotations.TokensAnnotation.class).each { CoreLabel tok ->
-                tokens << tok.word()
+                tokens << tok.word().toLowerCase()
                 pos << tok.tag()
-                stems << tok.lemma()
+                stems << tok.lemma().toLowerCase()
+                offsets << tok.beginPosition()
                 tokIndex++
+//                println "${tok.word()} ${tok.lemma()} ${tok.tag()} ${tok.beginPosition()} $tokIndex"
             }
             boundaries << tokIndex
         }
+        return this
     }
 
     class NLPFactory {
