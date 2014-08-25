@@ -16,28 +16,24 @@ class TextTiling {
     def similarityScores = []
     def scoreOffsets = []
 
+    def depthScores = []
+
     TextTiling(String text) {
         this.text = new Text(text).analyze()
     }
 
     def computeSimilarityScores() {
-        def final tokens = text.stems
+        def tokens = text.stems
         def (left, right) = [ [:], [:] ]
         def (scores, tokOffset) = [ [], [] ]
 
-        (WINDOW_SIZE..0).each { i ->
-            incrementTerm(i, left)
-        }
-        (WINDOW_SIZE*2..WINDOW_SIZE).each { i ->
-            incrementTerm(i, right)
-        }
+        // Initialize vector within window
+        (0..WINDOW_SIZE).each { i -> incrementTerm(i, left) }
+        (WINDOW_SIZE..WINDOW_SIZE*2).each { i -> incrementTerm(i, right) }
 
         int stepCount = 0
         (WINDOW_SIZE..<(tokens.size()-WINDOW_SIZE)).each { int i ->
             if (stepCount == 0 || (i == tokens.size()-WINDOW_SIZE-1)) {
-                println "Calling cosine similarity from window $i"
-                println left.sort { it.key }
-                println right.sort { it.key }
                 // compute similarity score between the term vectors
                 scores << cosineSimilarity(left, right) // todo
                 tokOffset << i
@@ -55,13 +51,10 @@ class TextTiling {
             stepCount--
         }
 
-        println scores
-        (0..<scores.size()).each { int i ->
-            similarityScores[i] = (scores.drop(i).take(SMOOTHING).sum() / SMOOTHING)
-            scoreOffsets = tokOffset[i+1]
+        (0..(scores.size()-SMOOTHING)).each { int i ->
+            similarityScores[i] = (scores.drop(i).take(SMOOTHING).sum() / SMOOTHING) // todo can probably use collection.sublist()
+            scoreOffsets[i] = tokOffset[i+1]
         }
-        println similarityScores
-        println similarityScores.size()
     }
 
     def cosineSimilarity(Map m1, Map m2) {
@@ -72,9 +65,10 @@ class TextTiling {
         // Union terms in both vectors
         def allTerms = [m1, m2]*.keySet().flatten().unique()
         int squareSumShared = allTerms.collect { key ->
-            if (m1.containsKey(key) && m2.containsKey(key)) { m1[key] * m2[key] } else 0
+            if (m1.containsKey(key) && m2.containsKey(key)) { m1[key] * m2[key] }
+            else 0
         }.sum()
-        println "ssM1: $squaredSumM1, ssM2: $squaredSumM2, ssShared: $squareSumShared"
+
         return (squareSumShared / Math.sqrt(squaredSumM1 * squaredSumM2))
     }
 
@@ -91,13 +85,37 @@ class TextTiling {
     }
 
     boolean include(int i) {
-        return text.pos[i].matches( ~/^[NVJ].*/)
+//        return text.pos[i].matches( ~/^[NVJ].*/)
+        return true
+    }
+
+    def computeDepthScores() {
+        def (maxima, deltaLeft, deltaRight) = [0d, 0d, 0d]
+
+        (similarityScores.size()-1..0).each { int i ->
+            // scan left
+            maxima = similarityScores[i]
+            for (int j = i; j > 0 && similarityScores[j] >= maxima; j--) {
+                maxima = similarityScores[j]
+            }
+            deltaLeft = maxima - similarityScores[i]
+
+            // scan right
+            maxima = similarityScores[i]
+            for (int j = i; j < similarityScores.size() && similarityScores[j] >= maxima; j++) {
+                maxima = similarityScores[j]
+            }
+            deltaRight = maxima - similarityScores[i]
+
+            depthScores[i] = deltaLeft + deltaRight
+        }
     }
 
     static void main(String[] args) {
         def f = new File('src/test/resources/sample.txt')
         def tt = new TextTiling(f.text)
         tt.computeSimilarityScores()
-        new TextTiling(new File('src/test/resources/sample2.txt').text)
+        tt.computeDepthScores()
+//        new TextTiling(new File('src/test/resources/sample2.txt').text)
     }
 }

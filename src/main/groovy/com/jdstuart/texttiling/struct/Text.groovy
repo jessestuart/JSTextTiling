@@ -30,7 +30,7 @@ class Text {
         def sentences = document.get(CoreAnnotations.SentencesAnnotation.class)
 
         int tokIndex = 0
-        [boundaries, offsets].each { it << 0 } // initialize boundaries
+        [boundaries, offsets]*.add 0 // initialize boundaries
         sentences.each { CoreMap sentence ->
             sentence.get(CoreAnnotations.TokensAnnotation.class).each { CoreLabel tok ->
                 tokens << tok.word().toLowerCase()
@@ -38,7 +38,6 @@ class Text {
                 stems << tok.lemma().toLowerCase()
                 offsets << tok.beginPosition()
                 tokIndex++
-//                println "${tok.word()} ${tok.lemma()} ${tok.tag()} ${tok.beginPosition()} $tokIndex"
             }
             boundaries << tokIndex
         }
