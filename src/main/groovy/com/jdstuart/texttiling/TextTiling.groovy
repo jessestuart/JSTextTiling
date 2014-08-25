@@ -18,6 +18,8 @@ class TextTiling {
 
     def depthScores = []
 
+    def segmentOffsets = []
+
     TextTiling(String text) {
         this.text = new Text(text).analyze()
     }
@@ -50,7 +52,7 @@ class TextTiling {
 
             stepCount--
         }
-
+        println scores
         (0..(scores.size()-SMOOTHING)).each { int i ->
             similarityScores[i] = (scores.drop(i).take(SMOOTHING).sum() / SMOOTHING) // todo can probably use collection.sublist()
             scoreOffsets[i] = tokOffset[i+1]
@@ -81,6 +83,9 @@ class TextTiling {
     void decrementTerm(int i, Map termVector) {
         if (include(i)) {
             termVector[text.stems[i]] = (termVector[text.stems[i]] ?: 0) - 1
+            if (termVector[text.stems[i]] == 0) {
+                termVector.remove(text.stems[i])
+            }
         }
     }
 
@@ -111,11 +116,58 @@ class TextTiling {
         }
     }
 
+    def identifyBoundaries() {
+        double depthAverage = depthScores.sum() / depthScores.size()
+        double depthVariance = depthScores.collect { double i -> Math.pow(i - depthAverage, 2) }.sum() / depthScores.size()
+        double threshold = depthAverage - (Math.sqrt(depthVariance) / 2)
+
+        def pseudoBoundaries = []
+        int neighbors = 3
+        for (int i = 0; i < depthScores.size(); i++) {
+            if (depthScores[i] >= threshold) {
+                // Candidate boundary; check if nearby area has any larger values
+                int fromIndex = [i-neighbors, 0].max()
+                int toIndex = [i+neighbors, depthScores.size()].min()
+                if (depthScores.subList(fromIndex, toIndex).max() == depthScores[i]) {
+                    pseudoBoundaries << scoreOffsets[i]
+                }
+            }
+        }
+        // Convert pseudo-boundaries into true boundaries, by aligning w/ nearest sentence boundary
+        segmentOffsets = pseudoBoundaries.collect { int pseudoBoundary ->
+            text.boundaries.sort { (it - pseudoBoundary).abs() }.first()
+        }
+    }
+
+    def printSegments() {
+        for (int i = 0; i < segmentOffsets.size(); i++) {
+            if (i == 0) {
+                println "="*20
+                println text.text.substring(0, text.offsets[segmentOffsets[i]]+1).trim()
+            }
+            else if (i == segmentOffsets.size()-1) {
+                println "="*20
+                println text.text.substring(text.offsets[segmentOffsets[i-1]+1]).trim()
+            }
+            else {
+                println "="*20
+                println text.text.substring(text.offsets[segmentOffsets[i-1]+1], text.offsets[segmentOffsets[i]+1]).trim()
+            }
+        }
+    }
+
     static void main(String[] args) {
         def f = new File('src/test/resources/sample.txt')
         def tt = new TextTiling(f.text)
+//        def tt = new TextTiling(new File('src/test/resources/sample2.txt').text)
         tt.computeSimilarityScores()
         tt.computeDepthScores()
+        tt.identifyBoundaries()
+        tt.printSegments()
+
+//        tt.similarityScores.each { println it }
+//        println ""
+//        tt.depthScores.each { println it }
 //        new TextTiling(new File('src/test/resources/sample2.txt').text)
     }
 }
