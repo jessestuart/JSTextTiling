@@ -10,7 +10,7 @@ import edu.stanford.nlp.util.CoreMap
  * Created by jstuart on 8/21/14.
  */
 class Text {
-    String text
+    String source
 
     def boundaries = []
     def offsets = []
@@ -19,13 +19,13 @@ class Text {
     def pos = []
     def stems = []
 
-    Text(text) {
-        this.text = text
+    Text(String text) {
+        this.source = text
     }
 
     def analyze() {
         StanfordCoreNLP annotator = NLPFactory.annotator()
-        Annotation document = new Annotation(text)
+        Annotation document = new Annotation(source)
         annotator.annotate(document)
         def sentences = document.get(CoreAnnotations.SentencesAnnotation.class)
 

@@ -52,7 +52,6 @@ class TextTiling {
 
             stepCount--
         }
-        println scores
         (0..(scores.size()-SMOOTHING)).each { int i ->
             similarityScores[i] = (scores.drop(i).take(SMOOTHING).sum() / SMOOTHING) // todo can probably use collection.sublist()
             scoreOffsets[i] = tokOffset[i+1]
@@ -90,8 +89,8 @@ class TextTiling {
     }
 
     boolean include(int i) {
-//        return text.pos[i].matches( ~/^[NVJ].*/)
-        return true
+        return text.pos[i].matches( ~/^[NVJ].*/ )
+//        return true
     }
 
     def computeDepthScores() {
@@ -141,33 +140,51 @@ class TextTiling {
 
     def printSegments() {
         for (int i = 0; i < segmentOffsets.size(); i++) {
-            if (i == 0) {
-                println "="*20
-                println text.text.substring(0, text.offsets[segmentOffsets[i]]+1).trim()
+            if (i == 0) { // first segment
+                println "="*20 + " first segment"
+                println text.source.substring(0, text.offsets[segmentOffsets[i]]+1).trim()
             }
-            else if (i == segmentOffsets.size()-1) {
-                println "="*20
-                println text.text.substring(text.offsets[segmentOffsets[i-1]+1]).trim()
+            else if (i == segmentOffsets.size()-1) { // last segment
+                println "="*20 + " last segment"
+                println text.source.substring(text.offsets[segmentOffsets[i-1]+1]).trim()
             }
-            else {
-                println "="*20
-                println text.text.substring(text.offsets[segmentOffsets[i-1]+1], text.offsets[segmentOffsets[i]+1]).trim()
+            else { // everything else
+                println "="*20 + " segment ${segmentOffsets[i]}"
+                println text.source.substring(text.offsets[segmentOffsets[i-1]+1], text.offsets[segmentOffsets[i]+1]).trim()
+            }
+        }
+    }
+
+    def examine() {
+        println "Examining text."
+        for (int i = 0; i < text.stems.size(); i++) {
+            if (text.boundaries.contains(i)) {
+                println ""
+            }
+            if (include(i)) {
+                print "${text.stems[i]} "
             }
         }
     }
 
     static void main(String[] args) {
-        def f = new File('src/test/resources/sample.txt')
-        def tt = new TextTiling(f.text)
+//        def f = new File('src/test/resources/sample.txt')
+//        def tt = new TextTiling(f.text)
 //        def tt = new TextTiling(new File('src/test/resources/sample2.txt').text)
+        def tt = new TextTiling(new File('src/test/resources/Harman.txt').text)
         tt.computeSimilarityScores()
         tt.computeDepthScores()
         tt.identifyBoundaries()
         tt.printSegments()
 
-//        tt.similarityScores.each { println it }
-//        println ""
-//        tt.depthScores.each { println it }
-//        new TextTiling(new File('src/test/resources/sample2.txt').text)
+        println "sim scores: "
+        tt.similarityScores.each { println it }
+        println ""
+        tt.depthScores.each { println it }
+
+        println tt.segmentOffsets
+        println "num segments : ${tt.segmentOffsets.size()+1}"
+
+        tt.examine()
     }
 }
