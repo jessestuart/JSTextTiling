@@ -70,7 +70,7 @@ class TextTiling {
         return segments
     }
 
-    void computeSimilarityScores() {
+    private void computeSimilarityScores() {
         def tokens = text.stems
         def (left, right) = [ [:], [:] ]
         def (scores, tokOffset) = [ [], [] ]
@@ -104,7 +104,7 @@ class TextTiling {
         }
     }
 
-    double cosineSimilarity(Map m1, Map m2) {
+    private double cosineSimilarity(Map m1, Map m2) {
         // Compute the squared sum for each vector
         int squaredSumM1 = m1.values().collect { it * it }.sum()
         int squaredSumM2 = m2.values().collect { it * it }.sum()
@@ -119,13 +119,13 @@ class TextTiling {
         return (squareSumShared / Math.sqrt(squaredSumM1 * squaredSumM2))
     }
 
-    void incrementTerm(int i, Map termVector) {
+    private void incrementTerm(int i, Map termVector) {
         if (include(i)) {
             termVector[text.stems[i]] = (termVector[text.stems[i]] ?: 0) + 1
         }
     }
 
-    void decrementTerm(int i, Map termVector) {
+    private void decrementTerm(int i, Map termVector) {
         if (include(i)) {
             termVector[text.stems[i]] = (termVector[text.stems[i]] ?: 0) - 1
             if (termVector[text.stems[i]] == 0) {
@@ -134,11 +134,11 @@ class TextTiling {
         }
     }
 
-    boolean include(int i) {
+    private boolean include(int i) {
         return text.pos[i].matches( ~/^[NVJ].*/ )
     }
 
-    void computeDepthScores() {
+    private void computeDepthScores() {
         def (maxima, deltaLeft, deltaRight) = [0d, 0d, 0d]
 
         (similarityScores.size()-1..0).each { int i ->
@@ -160,7 +160,7 @@ class TextTiling {
         }
     }
 
-    void identifyBoundaries() {
+    private void identifyBoundaries() {
         double depthAverage = depthScores.sum() / depthScores.size()
         double depthVariance = depthScores.collect { double i -> Math.pow(i - depthAverage, 2) }.sum() / depthScores.size()
         double threshold = depthAverage - (Math.sqrt(depthVariance) / 2)
@@ -182,24 +182,7 @@ class TextTiling {
         }
     }
 
-    def printSegments() {
-        for (int i = 0; i < segmentOffsets.size(); i++) {
-            if (i == 0) { // first segment
-                println "="*20 + " first segment"
-                println text.source.substring(0, text.offsets[segmentOffsets[i]]+1).trim()
-            }
-            else if (i == segmentOffsets.size()-1) { // last segment
-                println "="*20 + " last segment"
-                println text.source.substring(text.offsets[segmentOffsets[i-1]+1]).trim()
-            }
-            else { // everything else
-                println "="*20 + " segment ${segmentOffsets[i]}"
-                println text.source.substring(text.offsets[segmentOffsets[i-1]+1], text.offsets[segmentOffsets[i]+1]).trim()
-            }
-        }
-    }
-
-    def examine() {
+    private void examine() {
         println "Examining text."
         for (int i = 0; i < text.stems.size(); i++) {
             if (text.boundaries.contains(i)) {
