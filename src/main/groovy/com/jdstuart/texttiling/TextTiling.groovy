@@ -18,13 +18,59 @@ class TextTiling {
 
     def depthScores = []
 
+    def pseudoBoundaries = []
     def segmentOffsets = []
 
     TextTiling(String text) {
         this.text = new Text(text).analyze()
     }
 
-    def computeSimilarityScores() {
+    public List<String> segment() {
+        [similarityScores, scoreOffsets, depthScores, pseudoBoundaries, segmentOffsets].each { it.clear() }
+
+        computeSimilarityScores()
+        computeDepthScores()
+        identifyBoundaries()
+
+        def segments = []
+        for (int i = 0; i < segmentOffsets.size(); i++) {
+            if (i == 0) segments << text.source.substring(0, text.offsets[segmentOffsets[i]]+1).trim()
+            else if (i == segmentOffsets.size()-1) segments << text.source.substring(text.offsets[segmentOffsets[i-1]+1]).trim()
+            else {
+                segments << text.source.substring(text.offsets[segmentOffsets[i-1]+1], text.offsets[segmentOffsets[i]+1]).trim()
+            }
+        }
+        return segments
+    }
+
+    public List<String> segment(int maxSegments) {
+        [similarityScores, scoreOffsets, depthScores, pseudoBoundaries, segmentOffsets].each { it.clear() }
+
+        computeSimilarityScores()
+        computeDepthScores()
+        identifyBoundaries()
+
+        def segmentDepths = [:]
+        pseudoBoundaries.each { int bound ->
+            segmentDepths[bound] = depthScores[scoreOffsets.indexOf(bound)]
+        }
+        def newBoundaries = segmentDepths.sort { it.value }
+                .drop(pseudoBoundaries.size() - maxSegments)
+                .collect { boundary -> text.boundaries.sort { (it - boundary.key).abs() }.first() }
+                .sort()
+        println "new boundaries : ${newBoundaries}"
+        def segments = []
+        for (int i = 0; i < newBoundaries.size(); i++) {
+            if (i == 0) segments << text.source.substring(0, text.offsets[newBoundaries[i]]+1).trim()
+            else if (i == segmentOffsets.size()-1) segments << text.source.substring(text.offsets[newBoundaries[i-1]+1]).trim()
+            else {
+                segments << text.source.substring(text.offsets[newBoundaries[i-1]+1], text.offsets[newBoundaries[i]+1]).trim()
+            }
+        }
+        return segments
+    }
+
+    void computeSimilarityScores() {
         def tokens = text.stems
         def (left, right) = [ [:], [:] ]
         def (scores, tokOffset) = [ [], [] ]
@@ -37,7 +83,7 @@ class TextTiling {
         (WINDOW_SIZE..<(tokens.size()-WINDOW_SIZE)).each { int i ->
             if (stepCount == 0 || (i == tokens.size()-WINDOW_SIZE-1)) {
                 // compute similarity score between the term vectors
-                scores << cosineSimilarity(left, right) // todo
+                scores << cosineSimilarity(left, right)
                 tokOffset << i
                 // reset step count
                 stepCount = STEP_SIZE
@@ -58,7 +104,7 @@ class TextTiling {
         }
     }
 
-    def cosineSimilarity(Map m1, Map m2) {
+    double cosineSimilarity(Map m1, Map m2) {
         // Compute the squared sum for each vector
         int squaredSumM1 = m1.values().collect { it * it }.sum()
         int squaredSumM2 = m2.values().collect { it * it }.sum()
@@ -90,10 +136,9 @@ class TextTiling {
 
     boolean include(int i) {
         return text.pos[i].matches( ~/^[NVJ].*/ )
-//        return true
     }
 
-    def computeDepthScores() {
+    void computeDepthScores() {
         def (maxima, deltaLeft, deltaRight) = [0d, 0d, 0d]
 
         (similarityScores.size()-1..0).each { int i ->
@@ -115,18 +160,17 @@ class TextTiling {
         }
     }
 
-    def identifyBoundaries() {
+    void identifyBoundaries() {
         double depthAverage = depthScores.sum() / depthScores.size()
         double depthVariance = depthScores.collect { double i -> Math.pow(i - depthAverage, 2) }.sum() / depthScores.size()
         double threshold = depthAverage - (Math.sqrt(depthVariance) / 2)
 
-        def pseudoBoundaries = []
         int neighbors = 3
         for (int i = 0; i < depthScores.size(); i++) {
             if (depthScores[i] >= threshold) {
                 // Candidate boundary; check if nearby area has any larger values
-                int fromIndex = [i-neighbors, 0].max()
-                int toIndex = [i+neighbors, depthScores.size()].min()
+                int fromIndex = [i-neighbors, 0].max() // avoid underflow
+                int toIndex = [i+neighbors, depthScores.size()].min() // avoid overflow
                 if (depthScores.subList(fromIndex, toIndex).max() == depthScores[i]) {
                     pseudoBoundaries << scoreOffsets[i]
                 }
@@ -171,20 +215,16 @@ class TextTiling {
 //        def f = new File('src/test/resources/sample.txt')
 //        def tt = new TextTiling(f.text)
 //        def tt = new TextTiling(new File('src/test/resources/sample2.txt').text)
+//        def segments = new TextTiling(new File('src/test/resources/Harman.txt').text).segment(10)
         def tt = new TextTiling(new File('src/test/resources/Harman.txt').text)
-        tt.computeSimilarityScores()
-        tt.computeDepthScores()
-        tt.identifyBoundaries()
-        tt.printSegments()
 
-        println "sim scores: "
-        tt.similarityScores.each { println it }
-        println ""
-        tt.depthScores.each { println it }
+        def defaultSegments = tt.segment()
+        def newSegments = tt.segment(5)
 
-        println tt.segmentOffsets
-        println "num segments : ${tt.segmentOffsets.size()+1}"
+        defaultSegments.each { println "="*20; println it }
+        println "${defaultSegments.size()}"
 
-        tt.examine()
+        newSegments.each { println "="*20; println it }
+        println "${newSegments.size()}"
     }
 }
