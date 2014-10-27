@@ -1,6 +1,7 @@
 package com.jdstuart.texttiling
 
 import com.jdstuart.texttiling.struct.Text
+import org.apache.tika.Tika
 
 /**
  *
@@ -57,7 +58,9 @@ class TextTiling {
         def newBoundaries = segmentDepths.sort { it.value }
                 .drop(pseudoBoundaries.size() - maxSegments)
                 .collect { boundary -> text.boundaries.sort { (it - boundary.key).abs() }.first() }
+                .unique()
                 .sort()
+
         println "new boundaries : ${newBoundaries}"
         def segments = []
         for (int i = 0; i < newBoundaries.size(); i++) {
@@ -65,6 +68,11 @@ class TextTiling {
             else if (i == segmentOffsets.size()-1) segments << text.source.substring(text.offsets[newBoundaries[i-1]+1]).trim()
             else {
                 segments << text.source.substring(text.offsets[newBoundaries[i-1]+1], text.offsets[newBoundaries[i]+1]).trim()
+            }
+
+            if (!segments[-1]) {
+                println "Removing empty segment."
+                segments.remove(segments.size()-1)
             }
         }
         return segments
@@ -199,14 +207,16 @@ class TextTiling {
 //        def tt = new TextTiling(f.text)
 //        def tt = new TextTiling(new File('src/test/resources/sample2.txt').text)
 //        def segments = new TextTiling(new File('src/test/resources/Harman.txt').text).segment(10)
-        def tt = new TextTiling(new File('src/test/resources/Harman.txt').text)
+//        def tt = new TextTiling(new File("src/test/resources/Harman.txt").text)
+        def s = new Tika().parseToString(new File("/Users/jestuart/Downloads/SilverSpring-Datasheet-Communications-Modules.pdf"))
+        def tt = new TextTiling(s)
 
-        def defaultSegments = tt.segment()
-        def newSegments = tt.segment(5)
 
-        defaultSegments.each { println "="*20; println it }
-        println "${defaultSegments.size()}"
+//        def defaultSegments = tt.segment()
+//        defaultSegments.each { println "="*20; println it }
+//        println "${defaultSegments.size()}"
 
+        def newSegments = tt.segment(10)
         newSegments.each { println "="*20; println it }
         println "${newSegments.size()}"
     }
