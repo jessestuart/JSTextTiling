@@ -4,15 +4,20 @@ import com.jdstuart.texttiling.struct.Text
 import org.apache.tika.Tika
 
 /**
- *
+ * TODO Clean this up:
+
+ * - Remove duck typing.
+ * - Replace `println`s with logging statements.
+ * - Remove hard-coded file path in main() method.
+
  * @author Jesse Stuart
  */
 class TextTiling {
     Text text
 
-    int WINDOW_SIZE = 100
-    int STEP_SIZE = 10
-    int SMOOTHING = 3
+    final static Integer WINDOW_SIZE = 100
+    final static Integer STEP_SIZE = 10
+    final static Integer SMOOTHING = 3
 
     def similarityScores = []
     def scoreOffsets = []
@@ -27,55 +32,80 @@ class TextTiling {
     }
 
     public List<String> segment() {
-        [similarityScores, scoreOffsets, depthScores, pseudoBoundaries, segmentOffsets].each { it.clear() }
+        this.reset()
 
         computeSimilarityScores()
         computeDepthScores()
         identifyBoundaries()
 
         def segments = []
-        for (int i = 0; i < segmentOffsets.size(); i++) {
-            if (i == 0) segments << text.source.substring(0, text.offsets[segmentOffsets[i]]+1).trim()
-            else if (i == segmentOffsets.size()-1) segments << text.source.substring(text.offsets[segmentOffsets[i-1]+1]).trim()
-            else {
-                segments << text.source.substring(text.offsets[segmentOffsets[i-1]+1], text.offsets[segmentOffsets[i]+1]).trim()
+        for (Integer i = 0; i < segmentOffsets.size(); i++) {
+            Integer startOffset = text.offsets[newBoundaries[i]] + 1
+            Integer endOffset = text.offsets[newBoundaries[i - 1] + 1]
+            if (i == 0) {
+                segments << text.source.substring(0, startOffset).trim()
+            } else if (i == segmentOffsets.size() - 1) {
+                segments << text.source.substring(endOffset).trim()
+            } else {
+                segments << text.source.substring(
+                  text.offsets[newBoundaries[i - 1] + 1],
+                  text.offsets[newBoundaries[i] + 1]
+                ).trim()
             }
         }
         return segments
     }
 
-    public List<String> segment(int maxSegments) {
-        [similarityScores, scoreOffsets, depthScores, pseudoBoundaries, segmentOffsets].each { it.clear() }
+    public List<String> segment(Integer maxSegments) {
+        this.reset()
 
         computeSimilarityScores()
         computeDepthScores()
         identifyBoundaries()
 
-        def segmentDepths = [:]
-        pseudoBoundaries.each { int bound ->
-            segmentDepths[bound] = depthScores[scoreOffsets.indexOf(bound)]
+        def segmentDepths = pseudoBoundaries.collect {
+          Integer bound -> depthScores[scoreOffsets.indexOf(bound)]
         }
         def newBoundaries = segmentDepths.sort { it.value }
-                .drop(pseudoBoundaries.size() - maxSegments)
-                .collect { boundary -> text.boundaries.sort { (it - boundary.key).abs() }.first() }
-                .unique()
-                .sort()
+            .drop(pseudoBoundaries.size() - maxSegments)
+            .collect { boundary ->
+                text.boundaries.sort { (it - boundary.key).abs() }.first()
+            }
+            .unique()
+            .sort()
 
         println "new boundaries : ${newBoundaries}"
-        def segments = []
-        for (int i = 0; i < newBoundaries.size(); i++) {
-            if (i == 0) segments << text.source.substring(0, text.offsets[newBoundaries[i]]+1).trim()
-            else if (i == segmentOffsets.size()-1) segments << text.source.substring(text.offsets[newBoundaries[i-1]+1]).trim()
-            else {
-                segments << text.source.substring(text.offsets[newBoundaries[i-1]+1], text.offsets[newBoundaries[i]+1]).trim()
+        List segments = []
+        for (Integer i = 0; i < newBoundaries.size(); i++) {
+            Integer startOffset = text.offsets[newBoundaries[i]] + 1
+            Integer endOffset = text.offsets[newBoundaries[i - 1] + 1]
+            if (i == 0) {
+                segments << text.source.substring(0, startOffset).trim()
+            } else if (i == segmentOffsets.size() - 1) {
+                segments << text.source.substring(endOffset).trim()
+            } else {
+                segments << text.source.substring(
+                  text.offsets[newBoundaries[i-1]+1],
+                  text.offsets[newBoundaries[i]+1]
+                ).trim()
             }
 
             if (!segments[-1]) {
-                println "Removing empty segment."
-                segments.remove(segments.size()-1)
+                println 'Removing empty segment.'
+                segments.remove(segments.size() - 1)
             }
         }
         return segments
+    }
+
+    private void reset() {
+        [
+          this.similarityScores,
+          this.scoreOffsets,
+          this.depthScores,
+          this.pseudoBoundaries,
+          this.segmentOffsets,
+        ]*.clear()
     }
 
     private void computeSimilarityScores() {
@@ -87,8 +117,8 @@ class TextTiling {
         (0..WINDOW_SIZE).each { i -> incrementTerm(i, left) }
         (WINDOW_SIZE..WINDOW_SIZE*2).each { i -> incrementTerm(i, right) }
 
-        int stepCount = 0
-        (WINDOW_SIZE..<(tokens.size()-WINDOW_SIZE)).each { int i ->
+        Integer stepCount = 0
+        (WINDOW_SIZE..<(tokens.size()-WINDOW_SIZE)).each { Integer i ->
             if (stepCount == 0 || (i == tokens.size()-WINDOW_SIZE-1)) {
                 // compute similarity score between the term vectors
                 scores << cosineSimilarity(left, right)
@@ -106,20 +136,20 @@ class TextTiling {
 
             stepCount--
         }
-        (0..(scores.size()-SMOOTHING)).each { int i ->
+        (0..(scores.size()-SMOOTHING)).each { Integer i ->
             similarityScores[i] = (scores.drop(i).take(SMOOTHING).sum() / SMOOTHING) // todo can probably use collection.sublist()
             scoreOffsets[i] = tokOffset[i+1]
         }
     }
 
-    private double cosineSimilarity(Map m1, Map m2) {
+    private Double cosineSimilarity(Map m1, Map m2) {
         // Compute the squared sum for each vector
-        int squaredSumM1 = m1.values().collect { it * it }.sum()
-        int squaredSumM2 = m2.values().collect { it * it }.sum()
+        Integer squaredSumM1 = m1.values().collect { it * it }.sum()
+        Integer squaredSumM2 = m2.values().collect { it * it }.sum()
 
         // Union terms in both vectors
         def allTerms = [m1, m2]*.keySet().flatten().unique()
-        int squareSumShared = allTerms.collect { key ->
+        Integer squareSumShared = allTerms.collect { key ->
             if (m1.containsKey(key) && m2.containsKey(key)) { m1[key] * m2[key] }
             else 0
         }.sum()
@@ -127,13 +157,13 @@ class TextTiling {
         return (squareSumShared / Math.sqrt(squaredSumM1 * squaredSumM2))
     }
 
-    private void incrementTerm(int i, Map termVector) {
+    private void incrementTerm(Integer i, Map termVector) {
         if (include(i)) {
             termVector[text.stems[i]] = (termVector[text.stems[i]] ?: 0) + 1
         }
     }
 
-    private void decrementTerm(int i, Map termVector) {
+    private void decrementTerm(Integer i, Map termVector) {
         if (include(i)) {
             termVector[text.stems[i]] = (termVector[text.stems[i]] ?: 0) - 1
             if (termVector[text.stems[i]] == 0) {
@@ -142,24 +172,24 @@ class TextTiling {
         }
     }
 
-    private boolean include(int i) {
+    private boolean include(Integer i) {
         return text.pos[i].matches( ~/^[NVJ].*/ )
     }
 
     private void computeDepthScores() {
         def (maxima, deltaLeft, deltaRight) = [0d, 0d, 0d]
 
-        (similarityScores.size()-1..0).each { int i ->
+        (similarityScores.size()-1..0).each { Integer i ->
             // scan left
             maxima = similarityScores[i]
-            for (int j = i; j > 0 && similarityScores[j] >= maxima; j--) {
+            for (Integer j = i; j > 0 && similarityScores[j] >= maxima; j--) {
                 maxima = similarityScores[j]
             }
             deltaLeft = maxima - similarityScores[i]
 
             // scan right
             maxima = similarityScores[i]
-            for (int j = i; j < similarityScores.size() && similarityScores[j] >= maxima; j++) {
+            for (Integer j = i; j < similarityScores.size() && similarityScores[j] >= maxima; j++) {
                 maxima = similarityScores[j]
             }
             deltaRight = maxima - similarityScores[i]
@@ -173,31 +203,34 @@ class TextTiling {
         double depthVariance = depthScores.collect { double i -> Math.pow(i - depthAverage, 2) }.sum() / depthScores.size()
         double threshold = depthAverage - (Math.sqrt(depthVariance) / 2)
 
-        int neighbors = 3
-        for (int i = 0; i < depthScores.size(); i++) {
+        Integer neighbors = 3
+        for (Integer i = 0; i < depthScores.size(); i++) {
             if (depthScores[i] >= threshold) {
                 // Candidate boundary; check if nearby area has any larger values
-                int fromIndex = [i-neighbors, 0].max() // avoid underflow
-                int toIndex = [i+neighbors, depthScores.size()].min() // avoid overflow
+                // `.max()` to avoid underflow.
+                Integer fromIndex = [i - neighbors, 0].max()
+                // `min()` to avoid overflow.
+                Integer toIndex = [i + neighbors, depthScores.size()].min()
                 if (depthScores.subList(fromIndex, toIndex).max() == depthScores[i]) {
                     pseudoBoundaries << scoreOffsets[i]
                 }
             }
         }
-        // Convert pseudo-boundaries into true boundaries, by aligning w/ nearest sentence boundary
-        segmentOffsets = pseudoBoundaries.collect { int pseudoBoundary ->
+        // Convert pseudo-boundaries Integero true boundaries, by aligning w/
+        // nearest sentence boundary.
+        segmentOffsets = pseudoBoundaries.collect { Integer pseudoBoundary ->
             text.boundaries.sort { (it - pseudoBoundary).abs() }.first()
         }
     }
 
     private void examine() {
-        println "Examining text."
-        for (int i = 0; i < text.stems.size(); i++) {
+        println 'Examining text.'
+        for (Integer i = 0; i < text.stems.size(); i++) {
             if (text.boundaries.contains(i)) {
-                println ""
+                println ''
             }
             if (include(i)) {
-                print "${text.stems[i]} "
+                prInteger "${text.stems[i]} "
             }
         }
     }

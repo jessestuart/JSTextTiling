@@ -7,7 +7,7 @@ import edu.stanford.nlp.pipeline.StanfordCoreNLP
 import edu.stanford.nlp.util.CoreMap
 
 /**
- * Created by jstuart on 8/21/14.
+ * @author Jesse Stuart
  */
 class Text {
     String source
@@ -45,15 +45,17 @@ class Text {
     }
 
     class NLPFactory {
+        /**
+         * Forbid instantiation.
+         */
+        private StanfordCoreFactory() {}
+
         private static StanfordCoreNLP pipeline
-        private StanfordCoreFactory() { }
+
         static StanfordCoreNLP annotator() {
-            if (pipeline == null) {
-                Properties props = new Properties();
-                props.put("annotators", "tokenize, ssplit, pos, lemma");
-                pipeline = new StanfordCoreNLP(props);
-            }
-            return pipeline;
+            pipeline ?: new StanfordCoreNLP(
+                new Properties(annotators: 'tokenize, ssplit, pos, lemma')
+            )
         }
     }
 }
